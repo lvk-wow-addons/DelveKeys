@@ -1,0 +1,10 @@
+## Interface: 110002
+## Title: DelveKeys
+## Notes: 
+## Author: Lasse Vågsæther Karlsen
+## Version: 11.0.2
+## DefaultState: Enabled
+## SavedVariables: DelveKeysDB
+## RequiredDeps: LVK
+
+DelveKeys.lua

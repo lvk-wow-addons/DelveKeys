@@ -59,6 +59,10 @@ function DelveKeys:GetCurrentCharacterState()
 end
 
 function DelveKeys:CheckAndUpdate()
+    if UnitLevel("player") < 80 then
+        return
+    end
+
     local key = DelveKeys:GetCharacterKey()
     local state = DelveKeysDB.characters[key]
     if state then
@@ -71,31 +75,40 @@ function DelveKeys:CheckAndUpdate()
     DelveKeysDB.characters[key] = DelveKeys:GetCurrentCharacterState()
 end
 
-function DelveKeys:Report(all)
+function DelveKeys:Report(filter)
     local first = true
+    local all = filter == "all"
     for k, v in pairs(DelveKeysDB.characters) do
-        if v.keys > 0 or v.obtained < v.obtainable or all then
+        local hasKeys = v.keys > 0 or v.obtained < v.obtainable
+        local include = false
+        if filter == "player" then
+            include = UnitName("player") == k
+        elseif all or hasKeys then
+            include = true
+        end
+        if include then
             if first then
                 LVK:Print("|y|Delve Keys Report|<|:")
                 first = false
             end
 
-            if GetRealmName() == v.realm then
-                LVK:Print("   |y|%s |g|@%s|<|:", v.name, v.realm)
-            else
-                LVK:Print("   |y|%s |r|@%s|<|:", v.name, v.realm)
-            end
-            LVK:Print("      |y|Restored Coffer Key%s|<|: |g|%d|<|", v.keys == 1 and "" or "s", v.keys)
-            if v.obtained < v.obtainable then
-                LVK:Print("      |y|Obtained Keys|<|: |g|%d|<| / |g|%d|<|", v.obtained, v.obtainable)
-            else
-                LVK:Print("      |y|Obtained Keys|<|: |r|%d|<| / |g|%d|<|", v.obtained, v.obtainable)
+            local indent = "   "
+            if UnitName("player") == v.name and GetRealmName() == v.realm then
+                indent = LVK:Colorize("|r|>|<| ")
             end
 
-            local left = v.keys + (v.obtainable - v.obtained)
-            if left > 0 then
-                LVK:Print("      |y|Key%s left to run|<|: |g|%d|<|", left == 1 and "" or "s", left)
+            local s = LVK:Colorize("%s|y|%s|<|", indent, v.name)
+            if GetRealmName() == v.realm then
+                s = s .. LVK:Colorize(" |g|@%s|<|:", v.realm)
+            else
+                s = s .. LVK:Colorize(" |r|@%s|<|:", v.realm)
             end
+            s = s .. LVK:Colorize(" |y|%d|<|", v.keys)
+            if v.obtained < v.obtainable then
+                s = s .. LVK:Colorize(" + |g|%d|<|", v.obtainable - v.obtained)
+            end
+
+            print(s)
         end
     end
 end
@@ -104,7 +117,11 @@ function DelveKeys:Slash_Report(all)
     if type(all) == "table" then
         all = all[1]
     end
-    DelveKeys:Report(all == "all")
+    DelveKeys:Report(all)
+end
+
+function DelveKeys:Slash_Status()
+    DelveKeys:Report("player")
 end
 
 local frame = LVK:EventHandler()
@@ -114,8 +131,20 @@ frame.RegisterEvent("ADDON_LOADED", function(addon, ...)
         LVK:AnnounceAddon("DelveKeys")
 
         DelveKeys:UpdateState()
-        DelveKeys:CheckAndUpdate()
     end
+end)
+
+frame.RegisterEvent("PET_JOURNAL_LIST_UPDATE", function(...)
+    frame.UnregisterEvent("PET_JOURNAL_LIST_UPDATE")
+
+    C_Timer.After(2, function()
+        DelveKeys:CheckAndUpdate()
+        DelveKeys:Report("player")
+
+        frame.RegisterEvent({ "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED_INDOORS", "CHAT_MSG_CURRENCY", "LOOT_CLOSED", "CRITERIA_UPDATE", "CURRENCY_DISPLAY_UPDATE", "SHOW_LOOT_TOAST", "CHAT_MSG_SYSTEM" }, function(...)
+            DelveKeys:CheckAndUpdate()
+        end)
+    end)
 end)
 
 SLASH_DELVEKEYS1 = "/dk"
